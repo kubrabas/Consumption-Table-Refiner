@@ -12,11 +12,7 @@ class DataReader:
         # Automatically determine file type upon initialization
         self.file_extension = os.path.splitext(file_path)[1].lower()
         self.df = None
-        
-        # skiprows is set to 0 (Excel usually handles headers well)
-        self.skiprows = 0
 
-    # The CSV-specific "_determine_csv_params" method has been REMOVED entirely.
 
     def read_data(self):
         """
@@ -26,7 +22,9 @@ class DataReader:
         if self.file_extension in ['.xlsx', '.xls']:
             # Read the Excel file 
             # Note: skiprows=0 is the default, but explicitly kept for clarity
-            self.df = pd.read_excel(self.file_path, skiprows=self.skiprows)
+            self.df = pd.read_excel(self.file_path,
+                                     skiprows= 0,
+                                      header=None )
             
         else:
             # Only accept Excel formats.
@@ -37,6 +35,7 @@ class DataReader:
             
         return self.df
 
+
     def clean_dataframe(self):
         """
         Drop columns and rows that are completely NaN.
@@ -45,23 +44,3 @@ class DataReader:
         self.df = self.df.dropna(axis=0, how='all')
 
         return self.df
-    
-
-    def drop_unnamed(self):
-        """
-        If all column names start with 'Unnamed', treat the first row as data,
-        use the second row as the header, and drop the original header row.
-        """
-
-        # Convert column names to strings and check them
-        col_names = [str(c) for c in self.df.columns]
-
-        # If all column names start with 'Unnamed'
-        if all(name.startswith("Unnamed") or name == "nan" for name in col_names):
-        # Use the first row as the new header
-            new_header = self.df.iloc[0]   # row 0
-            self.df = self.df[1:]          # drop the first row
-            self.df.columns = new_header   # set new column names
-            self.df = self.df.reset_index(drop=True)  # reset the index
-            return self.df
-
