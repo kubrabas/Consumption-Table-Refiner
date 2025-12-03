@@ -30,3 +30,8 @@ temp_uploads/
 # Data and Notebooks
 *.log
 .ipynb_checkpoints/
+
+
+ToDo.txt
+testing.ipynb
+.DS_Store

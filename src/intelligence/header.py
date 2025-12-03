@@ -7,8 +7,8 @@ class HeaderDetector:
     TIME_KEYS = ["time", "date", "datum", "timestamp", "zeit", "uhrzeit"]
     CONS_KEYS = ["consumption", "kw", "kwh", "energy", "verbrauch", "power", "wirkleistung"]
 
-    def __init__(self, df):
-        self.df = df
+    def __init__(self, table):
+        self.table = table
 
     @staticmethod
     def _norm(x):
@@ -24,9 +24,9 @@ class HeaderDetector:
         best_row = None
         best_score = 0
 
-        for i in range(len(self.df)):
+        for i in range(len(self.table)):
             # normalize all values in this row
-            row_vals = [self._norm(v) for v in self.df.iloc[i]]
+            row_vals = [self._norm(v) for v in self.table.iloc[i]]
             # join them into a single string for simple substring search
             row_text = " | ".join(row_vals)
 
@@ -54,9 +54,9 @@ class HeaderDetector:
         hdr_idx = self.find_header_row()
 
         # new column names (normalized)
-        new_cols = [self._norm(c) for c in self.df.iloc[hdr_idx]]
-        new_df = self.df.iloc[hdr_idx+1:].copy()
-        new_df.columns = new_cols
-        new_df.reset_index(drop=True, inplace=True)
+        new_cols = [self._norm(c) for c in self.table.iloc[hdr_idx]]
+        new_table = self.table.iloc[hdr_idx+1:].copy()
+        new_table.columns = new_cols
+        new_table.reset_index(drop=True, inplace=True)
 
-        return new_df
+        return new_table

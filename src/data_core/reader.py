@@ -11,7 +11,7 @@ class DataReader:
         self.file_path = file_path
         # Automatically determine file type upon initialization
         self.file_extension = os.path.splitext(file_path)[1].lower()
-        self.df = None
+        self.table = None
 
 
     def read_data(self):
@@ -22,7 +22,7 @@ class DataReader:
         if self.file_extension in ['.xlsx', '.xls']:
             # Read the Excel file 
             # Note: skiprows=0 is the default, but explicitly kept for clarity
-            self.df = pd.read_excel(self.file_path,
+            self.table = pd.read_excel(self.file_path,
                                      skiprows= 0,
                                       header=None )
             
@@ -30,17 +30,9 @@ class DataReader:
             # Only accept Excel formats.
             raise ValueError(f"Unsupported file type: {self.file_extension}. Only XLSX/XLS formats are accepted.")
 
-        if self.df is None or self.df.empty:
+        if self.table is None or self.table.empty:
             raise ValueError("Data failed to load or the file is empty after reading.")
             
-        return self.df
+        return self.table
 
 
-    def clean_dataframe(self):
-        """
-        Drop columns and rows that are completely NaN.
-        """
-        self.df = self.df.dropna(axis=1, how='all')
-        self.df = self.df.dropna(axis=0, how='all')
-
-        return self.df
