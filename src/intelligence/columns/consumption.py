@@ -1,14 +1,14 @@
-import re
 from typing import Optional
 
 import pandas as pd
 from pandas.api.types import is_numeric_dtype
 
+from .base import BaseColumnDetector
 
-class ColumnDetector:
+
+class ConsumptionColumnDetector(BaseColumnDetector):
     """
-    Detect and normalize consumption- and time-related columns in a table.
-    (For now: only consumption-related logic is implemented.)
+    Detect and normalize consumption-related columns in a table.
     """
 
     CONSUMPTION_KEYWORDS = [
@@ -27,34 +27,12 @@ class ColumnDetector:
         ----------
         table : pd.DataFrame
             The input table that contains multiple columns, including
-            consumption- and time-related columns.
+            consumption-related columns.
         """
-        self.table = table
-        self.columns = list(table.columns)
+        super().__init__(table)
 
         self.consumption_column: Optional[str] = None
         self.consumption_unit: Optional[str] = None  # "kwh", "kw", or None
-
-    @staticmethod
-    def _norm(name: str) -> str:
-        """
-        Normalize a column name for comparison.
-
-        - Convert to lowercase
-        - Replace common separators (/ - _ . , | \) with spaces
-        - Collapse multiple spaces into a single space
-        - Strip leading and trailing spaces
-        """
-        s = str(name).lower()
-
-        # Replace common separators with spaces
-        for ch in ["/", "-", "_", ".", ",", "|", "\\"]:
-            s = s.replace(ch, " ")
-
-        # Collapse multiple whitespace characters into a single space
-        s = re.sub(r"\s+", " ", s).strip()
-
-        return s
 
     def _detect_consumption_unit_from_name(self, name: str) -> Optional[str]:
         """
