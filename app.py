@@ -8,6 +8,9 @@ from src.data_core.adjustments import TableRefiner
 from src.intelligence.header import HeaderDetector
 from src.intelligence.columns import ConsumptionColumnDetector, TimeColumnDetector
 
+# NEW: date column normalizer preference
+from src.intelligence.columns.time import Preference_Date_And_Hour  # <- adjust if your path differs
+
 
 # ==============================================================================
 # Session State
@@ -235,6 +238,31 @@ if st.session_state.step == 1:
                 )
                 st.session_state.time_col = c2 if st.session_state.date_col == c1 else c1
                 st.info(f"Time part column: **{st.session_state.time_col}**")
+
+                # NEW: normalize/clean the selected DATE column immediately
+                try:
+                    date_col = st.session_state.date_col
+                    before_dtype = str(df[date_col].dtype)
+
+                    pref = Preference_Date_And_Hour(df, date_col)
+                    _kind = pref.detect_date_dtype()
+
+                    st.session_state.df_processed = pref.table
+                    df = st.session_state.df_processed
+
+                    after_dtype = str(df[date_col].dtype)
+
+                    st.success(
+                        f"✅ I normalized your date column **{date_col}** "
+                        f"(dtype: `{before_dtype}` → `{after_dtype}`)."
+                    )
+
+                    # ✅ CHANGE: show the head of the updated table instead of printing a list
+                    st.caption("Preview after normalization (first 10 rows):")
+                    st.dataframe(df.head(10), use_container_width=True)
+
+                except Exception as e:
+                    st.error(f"❌ I couldn't normalize the selected date column '{st.session_state.date_col}': {e}")
 
     st.write("---")
 
