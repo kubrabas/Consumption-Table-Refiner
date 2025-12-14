@@ -8,7 +8,10 @@ from src.data_core.adjustments import TableRefiner
 from src.intelligence.header import HeaderDetector
 from src.intelligence.columns import ConsumptionColumnDetector, TimeColumnDetector
 
-from src.intelligence.columns.time import Preference_Date_And_Hour  # <- adjust if needed
+from src.intelligence.columns.time import (
+    Preference_Date_And_Hour,
+    Preference_SingleDateTime,  # <- NEW
+)
 
 
 # ==============================================================================
@@ -180,6 +183,65 @@ if st.session_state.step == 1:
         else:
             st.info("No time columns selected yet.")
 
+        # ✅ NEW: single-column flow
+        if len(st.session_state.time_selected) == 1:
+            single_col = st.session_state.time_selected[0]
+
+            st.markdown("#### You selected one time-related column")
+            st.write(
+                "If this column already contains both **date + time** in one string "
+                "(e.g., `01.01.2024, 00:00:00`), I can split it into normalized "
+                "`date_norm` + `hour_norm` and create a `moment` timestamp."
+            )
+
+            single_mode = st.radio(
+                "How should I interpret this column?",
+                options=[
+                    "This one column contains a full timestamp (date + time).",
+                    "Keep it as-is for now (decide later).",
+                ],
+                index=0,
+            )
+
+            if single_mode.startswith("This one column contains a full timestamp"):
+                try:
+                    before_dtype = str(df[single_col].dtype)
+
+                    pref = Preference_SingleDateTime(df, datetime_col=single_col)
+
+                    extract_rate = pref.extract_date_and_hour()
+                    moment_rate = pref.create_moment_column()
+
+                    # ✅ keep only moment + consumption_kwh
+                    refiner2 = TableRefiner(pref.table)
+                    refiner2.keep_only_moment_and_consumption(
+                        moment_col="moment",
+                        consumption_col="consumption_kwh",
+                    )
+                    pref.table = refiner2.table
+
+                    st.session_state.df_processed = pref.table
+                    df = st.session_state.df_processed
+
+                    moment_dtype = str(df["moment"].dtype) if "moment" in df.columns else "N/A"
+
+                    st.success(
+                        f"✅ Parsed single column **{single_col}** "
+                        f"(dtype: `{before_dtype}`) into `moment`."
+                    )
+                    st.success(f"✅ Extract success rate (date+hour): **{extract_rate:.2%}**")
+                    st.success(
+                        f"✅ Created **moment** column (dtype: `{moment_dtype}`), parse success rate: **{moment_rate:.2%}**"
+                    )
+                    st.success("✅ Dropped all other columns (kept only `moment` and `consumption_kwh`).")
+
+                    st.caption("Final preview (first 10 rows):")
+                    st.dataframe(df.head(10), use_container_width=True)
+
+                except Exception as e:
+                    st.error(f"❌ I couldn't normalize the single datetime column: {e}")
+
+        # existing two-column flow (unchanged)
         if len(st.session_state.time_selected) == 2:
             c1, c2 = st.session_state.time_selected
 

@@ -7,6 +7,9 @@ import re
 from .base import BaseColumnDetector
 
 
+from typing import Optional
+
+
 # ==============================================================================
 # 1) Detector
 # ==============================================================================
@@ -192,3 +195,192 @@ class Preference_Date_And_Hour:
 
         self.table[out_col] = dt
         return float(dt.notna().mean()) if len(dt) else 0.0
+
+# ==============================================================================
+# 3) Together
+# ==============================================================================
+
+class Preference_SingleDateTime:
+    """
+    User selected ONE column that contains both date and time (string/object or datetime).
+
+    Goal (same spirit as Preference_Date_And_Hour):
+      - Extract DATE and HOUR parts from the single column
+      - Normalize DATE  -> "YYYY-MM-DD" (string)
+      - Normalize HOUR  -> "HH:MM:SS" (string)
+      - Combine into a single datetime column named "moment" (datetime64[ns], tz-naive)
+    """
+
+    # Accepts DMY (01.01.2024, 1/1/2024, 01-01-24) and YMD (2024-01-01, 2024/1/1)
+    _DMY = re.compile(r"(?P<d>\d{1,2})[.\-/](?P<m>\d{1,2})[.\-/](?P<y>\d{2,4})")
+    _YMD = re.compile(r"(?P<y>\d{4})[.\-/](?P<m>\d{1,2})[.\-/](?P<d>\d{1,2})")
+
+    # Time like 00:15 or 0:15 or 00:15:00 (also allows '.' as separator)
+    _TIME = re.compile(r"(?P<h>\d{1,2})[:.](?P<mi>\d{2})(?:[:.](?P<s>\d{2}))?")
+
+    def __init__(
+        self,
+        table: pd.DataFrame,
+        datetime_col: str,
+        date_col_out: str = "date_norm",
+        hour_col_out: str = "hour_norm",
+        out_col: str = "moment",
+    ):
+        self.table = table
+        self.datetime_col = datetime_col
+        self.date_col_out = date_col_out
+        self.hour_col_out = hour_col_out
+        self.out_col = out_col
+
+    @staticmethod
+    def _century_fix(y: int) -> int:
+        # 2-digit years heuristic: 00-69 -> 2000-2069, 70-99 -> 1970-1999
+        if y < 100:
+            return 2000 + y if y <= 69 else 1900 + y
+        return y
+
+    @staticmethod
+    def _to_hhmmss(txt: str) -> Optional[str]:
+        """
+        Normalize time-ish text to HH:MM:SS.
+        Accepts:
+          - "0:15", "00:15", "00:15:00"
+          - "0015", "015", "000000" (digits only)
+          - "00-15-00" (non-digits treated as separators)
+        Returns None if cannot parse/validate.
+        """
+        if txt is None:
+            return None
+        t = str(txt).strip()
+        if t == "":
+            return None
+
+        # normalize any non-digit to ':'
+        t2 = re.sub(r"[^\d]+", ":", t)
+        t2 = re.sub(r":+", ":", t2).strip(":")
+        parts = t2.split(":") if ":" in t2 else [t2]
+
+        if len(parts) == 1:
+            digits = parts[0]
+            if not digits.isdigit():
+                return None
+            if len(digits) == 6:      # HHMMSS
+                hh, mm, ss = digits[:2], digits[2:4], digits[4:6]
+            elif len(digits) == 4:    # HHMM
+                hh, mm, ss = digits[:2], digits[2:4], "00"
+            elif len(digits) == 3:    # HMM
+                hh, mm, ss = digits[:1], digits[1:3], "00"
+            elif len(digits) == 2:    # HH
+                hh, mm, ss = digits, "00", "00"
+            elif len(digits) == 1:    # H
+                hh, mm, ss = digits, "00", "00"
+            else:
+                return None
+        else:
+            if len(parts) == 2:
+                hh, mm = parts
+                ss = "00"
+            else:
+                hh, mm, ss = parts[0], parts[1], parts[2]
+
+        try:
+            h = int(hh); m = int(mm); s = int(ss)
+        except Exception:
+            return None
+
+        if not (0 <= h <= 23 and 0 <= m <= 59 and 0 <= s <= 59):
+            return None
+
+        return f"{h:02d}:{m:02d}:{s:02d}"
+
+    def extract_date_and_hour(self) -> float:
+        """
+        Extract date+time from the single column into two columns:
+          - self.date_col_out (string): YYYY-MM-DD
+          - self.hour_col_out (string): HH:MM:SS
+        Returns extraction success rate (both date+hour present).
+        """
+        if self.datetime_col not in self.table.columns:
+            raise KeyError(f"Datetime column not found: {self.datetime_col}")
+
+        s = self.table[self.datetime_col]
+
+        # If already datetime-like: easy split
+        if pd.api.types.is_datetime64_any_dtype(s):
+            self.table[self.date_col_out] = s.dt.strftime("%Y-%m-%d").astype("string")
+            self.table[self.hour_col_out] = s.dt.strftime("%H:%M:%S").astype("string")
+            ok = self.table[self.date_col_out].notna() & self.table[self.hour_col_out].notna()
+            return float(ok.mean()) if len(s) else 0.0
+
+        # string/object expected
+        if not (pd.api.types.is_string_dtype(s) or pd.api.types.is_object_dtype(s)):
+            raise TypeError(
+                f"Preference_SingleDateTime expects datetime or string/object, got dtype={s.dtype} for '{self.datetime_col}'."
+            )
+
+        s_str = s.astype("string")
+        dates = []
+        hours = []
+
+        for v in s_str.tolist():
+            if pd.isna(v):
+                dates.append(pd.NA)
+                hours.append(pd.NA)
+                continue
+
+            txt = str(v).strip()
+
+            # find date (prefer YMD if present, else DMY)
+            dm = self._YMD.search(txt) or self._DMY.search(txt)
+            if not dm:
+                dates.append(pd.NA)
+                hours.append(pd.NA)
+                continue
+
+            d = int(dm.group("d"))
+            mo = int(dm.group("m"))
+            y = self._century_fix(int(dm.group("y")))
+            date_norm = f"{y:04d}-{mo:02d}-{d:02d}"
+
+            # remove date part, then find time in the remainder
+            rest = (txt[: dm.start()] + " " + txt[dm.end() :]).strip()
+            # generic separators between date/time (comma, T, semicolon, multiple spaces...)
+            rest = re.sub(r"[T,;|]+", " ", rest)
+            rest = re.sub(r"\s+", " ", rest).strip()
+
+            tm = self._TIME.search(rest)
+            if tm:
+                h = tm.group("h")
+                mi = tm.group("mi")
+                sec = tm.group("s") or "00"
+                hour_norm = self._to_hhmmss(f"{h}:{mi}:{sec}")
+            else:
+                # fallback: attempt to normalize whatever is left (digits-only etc.)
+                hour_norm = self._to_hhmmss(rest)
+
+            dates.append(date_norm if date_norm else pd.NA)
+            hours.append(hour_norm if hour_norm else pd.NA)
+
+        self.table[self.date_col_out] = pd.Series(dates, index=self.table.index, dtype="string")
+        self.table[self.hour_col_out] = pd.Series(hours, index=self.table.index, dtype="string")
+
+        ok = self.table[self.date_col_out].notna() & self.table[self.hour_col_out].notna()
+        return float(ok.mean()) if len(s_str) else 0.0
+
+    def create_moment_column(self) -> float:
+        """
+        Combine date_norm + hour_norm into self.out_col as datetime64[ns] (tz-naive).
+        Returns parse success rate (0..1).
+        """
+        if self.date_col_out not in self.table.columns or self.hour_col_out not in self.table.columns:
+            _ = self.extract_date_and_hour()
+
+        date_s = self.table[self.date_col_out].astype("string")
+        hour_s = self.table[self.hour_col_out].astype("string")
+
+        combined = (date_s + " " + hour_s).astype("string")
+        dt = pd.to_datetime(combined, errors="coerce", format="%Y-%m-%d %H:%M:%S")
+
+        self.table[self.out_col] = dt
+        return float(dt.notna().mean()) if len(dt) else 0.0
+
