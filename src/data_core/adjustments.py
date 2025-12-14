@@ -89,3 +89,46 @@ class TableRefiner:
 
         self.columns = list(self.table.columns)
         return self.table
+
+    # ==========================================================================
+    # ✅ NEW METHOD: apply the "subtract 15 minutes" rule (no dtype conversion)
+    # ==========================================================================
+    def shift_moment_minus_15_if_first15_last00(self, *, moment_col: str = "moment") -> pd.DataFrame:
+        """
+        Checks the first and last row of the `moment` column.
+
+        Rule:
+        - If first row minute == 15
+        - AND last row minute == 00
+        -> subtract 15 minutes from EVERY value in the `moment` column.
+
+        Assumptions:
+        - `moment` is already datetime64[ns] (timezone-naive).
+        - No parsing / no pd.to_datetime conversion is done.
+        - Output remains datetime64[ns] (tz-naive).
+        """
+        if self.table is None or self.table.empty:
+            return self.table
+
+        if moment_col not in self.table.columns:
+            return self.table
+
+        s = self.table[moment_col]
+
+        # Only operate if dtype is exactly datetime64[ns] (tz-naive)
+        if not pd.api.types.is_datetime64_ns_dtype(s.dtype):
+            return self.table
+
+        first_val = s.iloc[0]
+        last_val = s.iloc[-1]
+
+        # If first/last are NaT, do nothing
+        if pd.isna(first_val) or pd.isna(last_val):
+            return self.table
+
+        # Apply rule
+        if int(first_val.minute) == 15 and int(last_val.minute) == 0:
+            self.table[moment_col] = s - pd.Timedelta(minutes=15)
+
+        self.columns = list(self.table.columns)
+        return self.table

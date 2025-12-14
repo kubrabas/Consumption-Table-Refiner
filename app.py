@@ -448,6 +448,16 @@ if st.session_state.step == 1:
     # Final preview + Save
     # ==============================================================================
     df = st.session_state.df_processed
+
+    # ✅ NEW: apply the 15-minute shift rule right before final table preview logic
+    try:
+        ref_shift = TableRefiner(df)
+        ref_shift.shift_moment_minus_15_if_first15_last00(moment_col="moment")
+        df = ref_shift.table
+        st.session_state.df_processed = df
+    except Exception:
+        pass
+
     final_ready = (
         isinstance(df, pd.DataFrame)
         and set(df.columns) == {"moment", "consumption_kwh"}
