@@ -22,7 +22,7 @@ from src.data_core.writer import TableWriter
 def init_state():
     defaults = {
         "step": 0,  # 0: upload, 1: preview+time select
-        "df_raw": None,  # ✅ NEW: raw upload (no changes)
+        "df_raw": None,  # raw upload (no changes)
         "df_processed": None,
         "consumption_col": None,
         "time_candidates": [],
@@ -35,6 +35,7 @@ def init_state():
         "log": [],
         "save_name": "",
         "saved_path": None,
+        "pipeline_summary": None,  # still stored, but not shown
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -56,34 +57,55 @@ def run_automatic_pipeline(file_path: str) -> dict:
     if table is None:
         table = df_processed
 
-    # ✅ NEW: keep a copy of the raw uploaded table (no cleaning, no header detection)
+    # Keep a copy of the raw uploaded table (no cleaning, no header detection)
     raw_table = table.copy()
+    raw_shape = raw_table.shape
 
-    refiner = TableRefiner(table)
-    refiner.clean_table()
-    table = refiner.table
+    # Clean #1
+    refiner1 = TableRefiner(table)
+    refiner1.clean_table()
+    table = refiner1.table
+    clean1_shape = table.shape
 
+    # Header detection
     header_det = HeaderDetector(table)
     header_det.apply_header()
     table = header_det.table
+    header_shape = table.shape
 
-    refiner = TableRefiner(table)
-    refiner.clean_table()
-    table = refiner.table
+    # Clean #2
+    refiner2 = TableRefiner(table)
+    refiner2.clean_table()
+    table = refiner2.table
+    clean2_shape = table.shape
 
+    # Consumption standardization
     cons_det = ConsumptionColumnDetector(table)
     consumption_col = cons_det.detect_consumption_column()
     _cons_kwh_series = cons_det.to_kwh()
     final_table = cons_det.table
+    final_shape = final_table.shape
 
+    # Time candidates
     time_det = TimeColumnDetector(final_table)
     time_candidates = time_det.detect_time_columns()
 
+    summary = {
+        "raw_shape": raw_shape,
+        "clean1_shape": clean1_shape,
+        "header_shape": header_shape,
+        "clean2_shape": clean2_shape,
+        "final_shape": final_shape,
+        "consumption_col": consumption_col,
+        "time_candidates_count": len(time_candidates) if time_candidates else 0,
+    }
+
     return {
-        "df_raw": raw_table,  # ✅ NEW
+        "df_raw": raw_table,
         "df_processed": final_table,
         "consumption_col": consumption_col,
         "time_candidates": time_candidates,
+        "summary": summary,
     }
 
 
@@ -113,12 +135,11 @@ if st.session_state.step == 0:
 
             results = run_automatic_pipeline(temp_path)
 
-            # ✅ NEW: store raw upload for preview
             st.session_state.df_raw = results["df_raw"]
-
             st.session_state.df_processed = results["df_processed"]
             st.session_state.consumption_col = results["consumption_col"]
             st.session_state.time_candidates = results["time_candidates"]
+            st.session_state.pipeline_summary = results.get("summary")
 
             st.session_state.time_selected = []
             st.session_state.time_pair_mode = None
@@ -145,33 +166,31 @@ if st.session_state.step == 0:
 # STEP 1: Preview + Time selection
 # ------------------------------------------------------------------------------
 if st.session_state.step == 1:
-    # ✅ NEW: show RAW preview first (no changes)
+    # RAW preview (no changes)
     df_raw = st.session_state.df_raw
     if isinstance(df_raw, pd.DataFrame):
         st.subheader("Original upload preview (raw, no changes)")
-        st.write("### First 10 rows (raw)")
-        st.dataframe(df_raw.head(10), use_container_width=True)
 
-        st.write("### Last 10 rows (raw)")
-        st.dataframe(df_raw.tail(10), use_container_width=True)
+        st.write("### First 20 rows (raw)")
+        st.dataframe(df_raw.head(20), use_container_width=True)
+
+        st.write("### Last 20 rows (raw)")
+        st.dataframe(df_raw.tail(20), use_container_width=True)
 
         st.write("---")
 
-    st.subheader("Data Processed (Automatic Steps Done)")
-    st.info(
-        "I automatically cleaned your table, applied header detection, "
-        "and standardized the consumption column to kWh. Now let's handle time columns."
-    )
+    # ✅ NEW: only consumption info (no processed preview)
+    st.write("---")
+    st.subheader("Consumption column")
 
-    df = st.session_state.df_processed
-    st.write("### Preview (first 10 rows)")
-    st.dataframe(df.head(10), use_container_width=True)
-
-    st.write("### Detected consumption column")
-    if st.session_state.consumption_col:
-        st.success(f"Consumption column detected: **{st.session_state.consumption_col}**")
+    consumption_col = st.session_state.consumption_col
+    if consumption_col:
+        st.success(
+            f"Selected consumption column: **{consumption_col}** → "
+            f"standardized to **consumption_kwh** (kWh)."
+        )
     else:
-        st.warning("I could not confidently detect a consumption column.")
+        st.warning("I could not confidently detect a consumption column, so no kWh standardization was applied.")
 
     st.write("---")
     st.write("### Time-related columns detected")
@@ -206,20 +225,21 @@ if st.session_state.step == 1:
             default=st.session_state.time_selected,
         )
 
+        df = st.session_state.df_processed
+
         if st.session_state.time_selected:
             st.success(f"Selected time columns: {st.session_state.time_selected}")
         else:
             st.info("No time columns selected yet.")
 
-        # ✅ single-column flow
+        # single-column flow
         if len(st.session_state.time_selected) == 1:
             single_col = st.session_state.time_selected[0]
 
             st.markdown("#### You selected one time-related column")
             st.write(
                 "If this column already contains both **date + time** in one string "
-                "(e.g., `01.01.2024, 00:00:00`), I can split it into normalized "
-                "`date_norm` + `hour_norm` and create a `moment` timestamp."
+                "(e.g., `01.01.2024, 00:00:00`), I can parse it and create a `moment` timestamp."
             )
 
             single_mode = st.radio(
@@ -236,7 +256,6 @@ if st.session_state.step == 1:
                     before_dtype = str(df[single_col].dtype)
 
                     pref = Preference_SingleDateTime(df, datetime_col=single_col)
-
                     extract_rate = pref.extract_date_and_hour()
                     moment_rate = pref.create_moment_column()
 
@@ -255,12 +274,11 @@ if st.session_state.step == 1:
                     moment_dtype = str(df["moment"].dtype) if "moment" in df.columns else "N/A"
 
                     st.success(
-                        f"✅ Parsed single column **{single_col}** "
-                        f"(dtype: `{before_dtype}`) into `moment`."
+                        f"✅ Parsed single column **{single_col}** (dtype: `{before_dtype}`) into `moment`."
                     )
                     st.success(f"✅ Extract success rate (date+hour): **{extract_rate:.2%}**")
                     st.success(
-                        f"✅ Created **moment** column (dtype: `{moment_dtype}`), parse success rate: **{moment_rate:.2%}**"
+                        f"✅ Created **moment** (dtype: `{moment_dtype}`), parse success rate: **{moment_rate:.2%}**"
                     )
                     st.success("✅ Dropped all other columns (kept only `moment` and `consumption_kwh`).")
 
@@ -315,7 +333,6 @@ if st.session_state.step == 1:
                     before_hour_dtype = str(df[hour_col].dtype)
 
                     pref = Preference_Date_And_Hour(df, date_col=date_col, hour_col=hour_col)
-
                     pref.detect_date_dtype()
                     pref.normalize_hour_column()
                     moment_rate = pref.create_moment_column(out_col="moment")
@@ -335,15 +352,13 @@ if st.session_state.step == 1:
                     moment_dtype = str(df["moment"].dtype) if "moment" in df.columns else "N/A"
 
                     st.success(
-                        f"✅ Date column **{date_col}** normalized "
-                        f"(dtype: `{before_date_dtype}` → `string`)."
+                        f"✅ Date column **{date_col}** normalized (dtype: `{before_date_dtype}` → `string`)."
                     )
                     st.success(
-                        f"✅ Hour column **{hour_col}** normalized to `HH:MM:SS` "
-                        f"(dtype: `{before_hour_dtype}` → `string`)."
+                        f"✅ Hour column **{hour_col}** normalized to `HH:MM:SS` (dtype: `{before_hour_dtype}` → `string`)."
                     )
                     st.success(
-                        f"✅ Created **moment** column (dtype: `{moment_dtype}`), parse success rate: **{moment_rate:.2%}**"
+                        f"✅ Created **moment** (dtype: `{moment_dtype}`), parse success rate: **{moment_rate:.2%}**"
                     )
                     st.success("✅ Dropped all other columns (kept only `moment` and `consumption_kwh`).")
 
@@ -374,11 +389,11 @@ if st.session_state.step == 1:
         st.write("---")
         st.subheader("Final table preview")
 
-        st.write("### First 10 rows")
-        st.dataframe(df.head(10), use_container_width=True)
+        st.write("### First 20 rows")
+        st.dataframe(df.head(20), use_container_width=True)
 
-        st.write("### Last 10 rows")
-        st.dataframe(df.tail(10), use_container_width=True)
+        st.write("### Last 20 rows")
+        st.dataframe(df.tail(20), use_container_width=True)
 
         st.info(
             "This is your final table. To save it, please give your table a name.\n\n"
@@ -434,6 +449,7 @@ if st.session_state.step == 1:
             st.session_state.time_col = None
             st.session_state.save_name = ""
             st.session_state.saved_path = None
+            st.session_state.pipeline_summary = None
             st.rerun()
 
     with colB:
