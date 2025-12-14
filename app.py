@@ -236,43 +236,8 @@ if st.session_state.step == 1:
         st.write("We found the following time-related columns in your uploaded file:")
         st.code("\n".join([f"- {c}" for c in candidates]), language="text")
 
-        a, b, c = st.columns(3)
-        with a:
-            if st.button("Select all time columns"):
-                st.session_state.time_selected = list(candidates)
-                st.session_state.time_cols_confirmed = False
-                st.session_state.time_selected_snapshot = []
-                st.rerun()
-        with b:
-            if st.button("Clear selection"):
-                st.session_state.time_selected = []
-                st.session_state.time_pair_mode = None
-                st.session_state.time_from_col = None
-                st.session_state.time_to_col = None
-                st.session_state.date_col = None
-                st.session_state.time_col = None
-
-                # reset confirm gates
-                st.session_state.time_cols_confirmed = False
-                st.session_state.time_selected_snapshot = []
-
-                st.session_state.single_mode_confirmed = False
-                st.session_state.single_mode_value = None
-
-                st.session_state.pair_mode_confirmed = False
-                st.session_state.pair_mode_value = None
-
-                st.session_state.from_to_confirmed = False
-                st.session_state.from_col_snapshot = None
-                st.session_state.to_col_snapshot = None
-
-                st.session_state.date_hour_confirmed = False
-                st.session_state.date_col_snapshot = None
-                st.session_state.time_col_snapshot = None
-
-                st.rerun()
-        with c:
-            st.write(f"Selected: {len(st.session_state.time_selected)}")
+        # (Removed) Select all / Clear selection buttons
+        st.write(f"Selected: {len(st.session_state.time_selected)}")
 
         # ----- NO DROPDOWN: checkbox list (multi-select) + confirm gate -----
         st.markdown("#### Select time-related columns (no dropdown)")
