@@ -240,7 +240,7 @@ if st.session_state.step == 1:
         st.write(f"Selected: {len(st.session_state.time_selected)}")
 
         # ----- NO DROPDOWN: checkbox list (multi-select) + confirm gate -----
-        st.markdown("#### Select time-related columns (no dropdown)")
+        st.markdown("#### Select time-related columns")
         new_selected = []
         for colname in candidates:
             checked = st.checkbox(
@@ -259,14 +259,14 @@ if st.session_state.step == 1:
 
         df = st.session_state.df_processed
 
-        if st.session_state.time_selected:
-            st.success(f"Selected time columns: {st.session_state.time_selected}")
-        else:
-            st.info("No time columns selected yet.")
+        # (REMOVED) Selected time columns success message
+
+        if not st.session_state.time_selected:
+            st.info("No time related columns selected yet.")
 
         # confirm gate (time columns)
         if st.session_state.time_selected:
-            if st.button("✅ Confirm selected time columns"):
+            if st.button("Confirm selection"):
                 st.session_state.time_cols_confirmed = True
                 st.session_state.time_selected_snapshot = list(st.session_state.time_selected)
                 st.rerun()
@@ -274,8 +274,7 @@ if st.session_state.step == 1:
             st.session_state.time_cols_confirmed = False
             st.session_state.time_selected_snapshot = []
 
-        if st.session_state.time_selected and not st.session_state.time_cols_confirmed:
-            st.warning("Please confirm your time-column selection to continue.")
+        # (REMOVED) Please confirm warning message
 
         # ------------------------------------------------------------------
         # single-column flow (ONLY after confirming selected time columns)
@@ -303,7 +302,7 @@ if st.session_state.step == 1:
                 st.session_state.single_mode_confirmed = False
             st.session_state.single_mode_value = single_mode
 
-            if st.button("✅ Confirm this interpretation (single column)"):
+            if st.button("Confirm this interpretation"):
                 st.session_state.single_mode_confirmed = True
                 st.rerun()
 
@@ -361,7 +360,7 @@ if st.session_state.step == 1:
                 "Choose one option:",
                 options=[
                     "These two columns represent a start and end time (from → to).",
-                    "These two columns together form a single timestamp (e.g., date + time).",
+                    "These two columns together form a single timestamp (date + hour).",
                     "These are two independent time fields (keep them separate).",
                     "Not sure yet (I want to decide later).",
                 ],
@@ -373,7 +372,7 @@ if st.session_state.step == 1:
                 st.session_state.pair_mode_confirmed = False
             st.session_state.pair_mode_value = st.session_state.time_pair_mode
 
-            if st.button("✅ Confirm this interpretation (two columns)"):
+            if st.button("Confirm this interpretation"):
                 st.session_state.pair_mode_confirmed = True
                 st.rerun()
 
@@ -423,7 +422,7 @@ if st.session_state.step == 1:
                 date_col = st.session_state.date_col
                 hour_col = c2 if date_col == c1 else c1
                 st.session_state.time_col = hour_col
-                st.info(f"Time part column: **{hour_col}**")
+                st.info(f"Hour part column: **{hour_col}**")
 
                 # confirm gate (date+hour)
                 if (date_col != st.session_state.date_col_snapshot) or (hour_col != st.session_state.time_col_snapshot):
