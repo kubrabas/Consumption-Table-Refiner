@@ -276,16 +276,14 @@ if st.session_state.step == 1:
             single_col = st.session_state.time_selected[0]
 
             st.markdown("#### You selected one time-related column")
-            st.write(
-                "If this column already contains both **date + time** in one string "
-                "(e.g., `01.01.2024, 00:00:00`), I can parse it and create a `moment` timestamp."
-            )
+
+            # ✅ UPDATED UI TEXT + single option
+            st.write("What is the format of the column you selected?")
 
             single_mode = st.radio(
-                "How should I interpret this column?",
+                "Choose one option:",
                 options=[
-                    "This one column contains a full timestamp (date + time).",
-                    "Keep it as-is for now (decide later).",
+                    "It contains both date and hour information (e.g., `01.01.2024, 00:00:00`).",
                 ],
                 index=0,
             )
@@ -300,9 +298,9 @@ if st.session_state.step == 1:
                 st.rerun()
 
             if not st.session_state.single_mode_confirmed:
-                st.warning("Confirm the interpretation to proceed with parsing.")
+                st.warning("Confirm the interpretation to proceed.")
             else:
-                if single_mode.startswith("This one column contains a full timestamp"):
+                if single_mode.startswith("It contains both date and hour information"):
                     try:
                         pref = Preference_SingleDateTime(df, datetime_col=single_col)
                         pref.extract_date_and_hour()
