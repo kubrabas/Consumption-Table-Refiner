@@ -169,15 +169,15 @@ if st.session_state.step == 1:
     # RAW preview (no changes)
     df_raw = st.session_state.df_raw
     if isinstance(df_raw, pd.DataFrame):
-        st.subheader("Original upload preview (raw, no changes)")
+        st.subheader("Original upload preview")
 
-        st.write("### First 20 rows (raw)")
+        st.write("### First 20 rows")
         st.dataframe(df_raw.head(20), use_container_width=True)
 
-        st.write("### Last 20 rows (raw)")
+        st.write("### Last 20 rows")
         st.dataframe(df_raw.tail(20), use_container_width=True)
 
-        st.write("---")
+        
 
     # ✅ NEW: only consumption info (no processed preview)
     st.write("---")
@@ -187,13 +187,13 @@ if st.session_state.step == 1:
     if consumption_col:
         st.success(
             f"Selected consumption column: **{consumption_col}** → "
-            f"standardized to **consumption_kwh** (kWh)."
+            f"standardized to **consumption_kwh**."
         )
     else:
         st.warning("I could not confidently detect a consumption column, so no kWh standardization was applied.")
 
     st.write("---")
-    st.write("### Time-related columns detected")
+    st.write("### Time-related column")
     candidates = st.session_state.time_candidates or []
 
     if not candidates:
@@ -389,10 +389,10 @@ if st.session_state.step == 1:
         st.write("---")
         st.subheader("Final table preview")
 
-        st.write("### First 20 rows")
+        st.write("### First 20 rows:")
         st.dataframe(df.head(20), use_container_width=True)
 
-        st.write("### Last 20 rows")
+        st.write("### Last 20 rows:")
         st.dataframe(df.tail(20), use_container_width=True)
 
         st.info(
