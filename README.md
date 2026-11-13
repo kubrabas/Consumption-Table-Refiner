@@ -32,7 +32,7 @@ cd Consumption-Table-Refiner
 ### 2) Create & activate a virtual environment
 #### macOS / Linux
 ```bash
-python -m venv .venv_ctr
+python3 -m venv .venv_ctr
 source .venv_ctr/bin/activate
 ```
 #### Windows (PowerShell)
