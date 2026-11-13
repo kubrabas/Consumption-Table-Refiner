@@ -50,3 +50,11 @@ pip install -r requirements.txt
 ```bash
 streamlit run app.py
 ```
+
+## Update to a new version
+```bash
+cd Consumption-Table-Refiner
+git pull
+```
+- **Mac app:** nothing else to do. The next start uses the new code and installs new packages by itself if `requirements.txt` changed. If the app is open, close its browser tab first; it stops after about a minute. If you installed the project before the Mac app existed, double-click `install.command` once.
+- **Manual run:** activate the environment, run `pip install -r requirements.txt`, then `streamlit run app.py`.
